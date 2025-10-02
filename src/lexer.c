@@ -1,37 +1,51 @@
+
 #include "lexer.h"
+#include "parser.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
+// Definitions for global variables
+char ident_str[256] = {0};
+double num_val = 0.0;
+int cur_tok = 0;
+
 TokensType get_tok() {
     char last_char = ' ';
+// ...existing code...
+
 
     while (isspace(last_char)) last_char = getchar();
 
     if (isalpha(last_char)) {
-        ident_str = &last_char;
-        while (isalnum((last_char = getchar())))
-            ident_str += last_char;
-        if (strcmp(ident_str, "def")) return TOK_DEF;
-        if (strcmp(ident_str, "extern")) return TOK_EXTERN;
-        if (strcmp(ident_str, "//")) {
-            do {
-                last_char = getchar();
-            } while(last_char != EOF && last_char != '\n' && last_char != '\r');
-            if (last_char != EOF) {
-                return get_tok();
+        int ident_len = 0;
+        // Build identifier string
+        do {
+            if (ident_len < 255) {
+                ident_str[ident_len++] = last_char;
             }
-        }
+            last_char = getchar();
+        } while (isalnum(last_char) || last_char == '_');
+        ident_str[ident_len] = '\0';
+
+        // Keyword check
+        if (strcmp(ident_str, "def") == 0) return TOK_DEF;
+        if (strcmp(ident_str, "extern") == 0) return TOK_EXTERN;
+        // ...other keywords if needed...
+
         return TOK_IDENT;
     }
     if (isdigit(last_char) || last_char == '.') {
-        char *num_str;
+        char num_str[256];
+        int num_len = 0;
         do {
-            num_str += last_char;
+            if (num_len < 255) {
+                num_str[num_len++] = last_char;
+            }
             last_char = getchar();
         } while(isdigit(last_char) || last_char == '.');
-
+        num_str[num_len] = '\0';
         num_val = strtod(num_str, 0);
         return TOK_NUMBER;
     }

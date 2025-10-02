@@ -1,126 +1,78 @@
 #include "parser.h"
-#include "ast.h"
 #include "lexer.h"
+#include "ast.h"
 #include <stdio.h>
-#include <stdbool.h>
-#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 
-exprAST* parse_number_expr() {
-    numberExprAST *result = malloc(sizeof(numberExprAST));
-    if (!result) {
-        eprintf(stderr, "Ran out of memory for numberExprAST\n");
-        exit(1);
-    }
-    result->base.kind = EXPR_NUMBER;
-    result->val = num_val;
-    get_next_tok();
-    return (exprAST*) result;
+static char *strdup_c4(const char *src) {
+    if (!src) return NULL;
+    size_t len = strlen(src);
+    char *dst = malloc(len + 1);
+    if (dst) strcpy(dst, src);
+    return dst;
 }
 
-exprAST* parse_paren_expr() {
-    get_next_tok();
-    exprAST* v = parse_expression();
-    if (!v) {
-        eprintf(stderr, "Ran out of memory for exprAST\n");
-        exit(1);
+int get_precedence(int tok) {
+    switch (tok) {
+        case '+': case '-': return 10;
+        case '*': case '/': return 20;
+        default: return -1;
     }
-    if (cur_tok != ')') return log_error("expected ')'");
-    get_next_tok();
-    return v;
 }
 
-exprAST* parse_ident_expr() {
-    char *id_name = ident_str;
-
-    get_next_tok();
-
-    if (cur_tok != '(') {
-        variableExprAST* v = malloc(sizeof(variableExprAST));
-        if (!v) {
-            eprintf(stderr, "Ran out of memory for variableExprAST");
-            exit(1);
-        } 
-        v->base.kind = EXPR_VARIABLE;
-        v->name = id_name;
-        return v;
-    }
-
-    get_next_tok();
-    exprAST args[MAX];
-    int index = 0;
-
-    if (cur_tok != ')') {
-        while (true) {
-            exprAST* arg = parse_expression();
-            if (arg) {
-                if (index < MAX) {
-                    args[index++] = *arg;
-                } else {
-                    return NULL;
-                }
-            }
-            if (cur_tok == ')') break;
-            
-            if (cur_tok != ',') {
-                return log_error("Expected ')' or '.' in argument list");
-            }
-            get_next_tok();
+ASTNode *parse_primary() {
+    if (cur_tok == TOK_NUMBER) {
+        ASTNode *node = malloc(sizeof(ASTNode));
+        node->type = AST_NUMBER;
+        node->data.number.value = num_val;
+        get_tok();
+        return node;
+    } else if (cur_tok == TOK_IDENT) {
+        ASTNode *node = malloc(sizeof(ASTNode));
+        node->type = AST_VARIABLE;
+        node->data.variable.name = strdup_c4(ident_str);
+        get_tok();
+        return node;
+    } else if (cur_tok == '(') {
+        get_tok();
+        ASTNode *expr = parse_expression();
+        if (cur_tok != ')') {
+            fprintf(stderr, "Expected ')'\n");
+            return NULL;
         }
-    }
-    get_next_tok();
-
-    callExprAST* n = {EXPR_CALL, id_name, *args, index};
-    return n;
-}
-
-exprAST* parse_primary() {
-  switch (cur_tok) {
-  default:
-    return LogError("unknown token when expecting an expression");
-  case TOK_IDENT:
-    return ParseIdentifierExpr();
-  case TOK_NUMBER:
-    return ParseNumberExpr();
-  case '(':
-    return ParseParenExpr();
-  }
-}
-
-int get_tok_precedence() {
-    if (!isascii(cur_tok)) return -1;
-    
-    int tok_prec = BinopPrecedence[cur_tok];
-    if (tok_prec <= 0) return -1;
-    return tok_prec;
-}
-
-exprAST* parse_expression() {
-    exprAST* lhs = parse_primary();
-    if (!lhs) {
+        get_tok();
+        return expr;
+    } else {
+        fprintf(stderr, "Unknown token in primary\n");
         return NULL;
     }
-    return parse_bin_op_rhs(0, &lhs);
 }
 
-exprAST* parse_bin_op_rhs(int expr_prec, exprAST* lhs) {
-    while (true) {
-        int tok_prec = get_tok_precedence();
-
-        if (tok_prec < expr_prec) return lhs;
-
-        int bin_op = cur_tok;
-        get_next_tok();
-
-        exprAST* rhs = parse_primary();
+ASTNode *parse_binary_rhs(int min_prec, ASTNode *lhs) {
+    while (1) {
+        int prec = get_precedence(cur_tok);
+        if (prec < min_prec) return lhs;
+        int op = cur_tok;
+        get_tok();
+        ASTNode *rhs = parse_primary();
         if (!rhs) return NULL;
-
-        int next_prec = get_tok_precedence();
-        if (tok_prec < next_prec) {
-            rhs = parse_bin_op_rhs(tok_prec + 1, &rhs);
+        int next_prec = get_precedence(cur_tok);
+        if (prec < next_prec) {
+            rhs = parse_binary_rhs(prec + 1, rhs);
             if (!rhs) return NULL;
         }
-
-        binaryExprAST LHS = {EXPR_BINARY, bin_op, lhs, rhs}; 
-        lhs = &LHS;
+        ASTNode *bin = malloc(sizeof(ASTNode));
+        bin->type = AST_BINARY;
+        bin->data.binary.op = op;
+        bin->data.binary.lhs = lhs;
+        bin->data.binary.rhs = rhs;
+        lhs = bin;
     }
+}
+
+ASTNode *parse_expression() {
+    ASTNode *lhs = parse_primary();
+    if (!lhs) return NULL;
+    return parse_binary_rhs(0, lhs);
 }

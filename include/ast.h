@@ -1,51 +1,37 @@
+// include guard begin
+#ifndef AST_H
+#define AST_H
+
+
 typedef enum {
-    EXPR_NUMBER,
-    EXPR_VARIABLE,
-    EXPR_BINARY,
-    EXPR_CALL
-} ExprKind;
+    AST_NUMBER,
+    AST_VARIABLE,
+    AST_BINARY
+} ASTNodeType;
 
-typedef struct exprAST {
-    ExprKind kind;
-} exprAST;
-
-typedef struct {
-    exprAST base; 
-    double val;
-} numberExprAST;
-
-typedef struct {
-    exprAST base;
-    char *name;
-} variableExprAST;
-
-typedef struct {
-    exprAST base;
-    char op;
-    exprAST *lhs;
-    exprAST *rhs;
-} binaryExprAST;
-
-typedef struct {
-    exprAST base;
-    char *callee;
-    exprAST **args;
-    int argCount;
-} callExprAST;
+typedef struct ASTNode {
+    ASTNodeType type;
+    union {
+        struct { double value; } number;
+        struct { char *name; } variable;
+        struct { char op; struct ASTNode *lhs, *rhs; } binary;
+    } data;
+} ASTNode;
 
 typedef struct {
     char *name;
-    char **args;
-    int argCount;
-} prototypeAST;
+    char **arg_names;
+    char **arg_types;
+    int arg_count;
+    char *return_type;
+} Prototype;
 
 typedef struct {
-    prototypeAST *proto;
-    exprAST *body;
-} functionAST;
+    Prototype *proto;
+    ASTNode *body;
+} Function;
 
-static int cur_tok;
-static int get_next_tok();
+extern int cur_tok;
+int get_next_tok();
 
-exprAST* log_error(char *str);
-prototypeAST* log_error_p(char *str);
+#endif // AST_H

@@ -6,6 +6,6 @@ typedef enum {
     TOK_NUMBER,
 } TokensType;
 
-static char *ident_str;
-static double num_val;
+extern char ident_str[256];
+extern double num_val;
 TokensType get_tok();
